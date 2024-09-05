@@ -15,7 +15,7 @@ async function main() {
       engine.process(JSON.parse(response)); // It is calling the process function on the engine and once the processing is
       // done then it will move to the next one . If you observe this engine.process() function is not an asynchronous call
       // because it should happen immediately as we are not storing anything in the database so  this process should happen
-      // asynchronously and also the javascript thread is continously running where it is doing two things continously , One
+      // synchronously and also the javascript thread is continously running where it is doing two things continously , One
       // thing is putting things on a orderbook array(orderbook[]) and the second thing is changing the balances of the user
     }
   }

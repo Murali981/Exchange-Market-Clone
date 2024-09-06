@@ -29,6 +29,9 @@ export class User {
 
   private addListeners() {
     this.ws.on("message", (message: string) => {
+      // Here whenever the message comes from the end user and if it is of type "SUBSCRIBE" then i will tell the
+      // SUBSCRIPTIONMANAGER class that subscribe to this specific topic and let us say the topic is depth@SOL_USDC event (or)
+      // topic
       const parsedMessage: IncomingMessage = JSON.parse(message);
       if (parsedMessage.method === SUBSCRIBE) {
         parsedMessage.params.forEach((s) =>
@@ -37,6 +40,9 @@ export class User {
       }
 
       if (parsedMessage.method === UNSUBSCRIBE) {
+        // If the user sends me the "UNSUBSCRIBE" then i will tell the "SUBSCRIPTIONMANAGER" class to unsubscribe from the
+        // depth@SOL_USDC event.
+        // SUBSCRIPTIONMANAGER CLASS is the class that will handle all the subscriptions that are made to the PUBSUB
         parsedMessage.params.forEach((s) =>
           SubscriptionManager.getInstance().unsubscribe(
             this.id,

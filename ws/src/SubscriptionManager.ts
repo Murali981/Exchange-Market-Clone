@@ -33,6 +33,9 @@ export class SubscriptionManager {
       (this.reverseSubscriptions.get(subscription) || []).concat(userId)
     );
     if (this.reverseSubscriptions.get(subscription)?.length === 1) {
+      // In the above line it is checking whether this is the first user who is trying to subscribe to this stream and
+      // if it is the first user then i will be subscribing to this PUBSUB and if more users come to the same market (or)
+      // same event then i no need to again subscribe to the same market (or) event
       this.redisClient.subscribe(subscription, this.redisCallbackHandler);
     }
   }
@@ -61,6 +64,8 @@ export class SubscriptionManager {
         reverseSubscriptions.filter((s) => s !== userId)
       );
       if (this.reverseSubscriptions.get(subscription)?.length === 0) {
+        // In the above line we are checking that if this is the last user who is stop subscribing to this specific market
+        // then only unsubscribe from this pubsub
         this.reverseSubscriptions.delete(subscription);
         this.redisClient.unsubscribe(subscription);
       }

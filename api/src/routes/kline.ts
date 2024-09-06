@@ -16,6 +16,14 @@ export const klineRouter = Router();
 klineRouter.get("/", async (req, res) => {
   const { market, interval, startTime, endTime } = req.query;
 
+  // Convert startTime and endTime to numbers and validate
+  const startTimestamp = Number(startTime);
+  const endTimestamp = Number(endTime);
+
+  if (isNaN(startTimestamp) || isNaN(endTimestamp)) {
+    return res.status(400).send("Invalid startTime or endTime");
+  }
+
   let query;
   switch (interval) {
     case "1m":
@@ -34,8 +42,8 @@ klineRouter.get("/", async (req, res) => {
   try {
     //@ts-ignore
     const result = await pgClient.query(query, [
-      new Date((startTime * 1000) as string),
-      new Date((endTime * 1000) as string),
+      new Date(startTimestamp * 1000),
+      new Date(endTimestamp * 1000),
     ]);
     res.json(
       result.rows.map((x) => ({

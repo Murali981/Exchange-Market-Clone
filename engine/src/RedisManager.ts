@@ -54,6 +54,7 @@ export class RedisManager {
   }
 
   public sendToApi(clientId: string, message: MessageToApi) {
-    this.client.publish(clientId, JSON.stringify(message));
+    this.client.publish(clientId, JSON.stringify(message)); // The above sendToApi() function will simply publishes
+    // on the above clientId channel
   }
 }

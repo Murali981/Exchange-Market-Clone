@@ -9,7 +9,8 @@ async function main() {
 
   while (true) {
     // This loop which is infinitely running will pulls messages from the queue
-    const response = await redisClient.rPop("messages" as string);
+    const response = await redisClient.rPop("messages" as string); // Here we are pulling messages infinitely from the
+    // message queue
     if (!response) {
     } else {
       engine.process(JSON.parse(response)); // It is calling the process function on the engine and once the processing is

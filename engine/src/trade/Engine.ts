@@ -87,6 +87,7 @@ export class Engine {
   }
 
   process({
+    // The user can send many messages here like create an order , cancel an order.
     message,
     clientId,
   }: {
@@ -95,6 +96,9 @@ export class Engine {
   }) {
     switch (message.type) {
       case CREATE_ORDER:
+        // whenever the create order message has come from the end user then we will call the below createOrder() function
+        // once the createOrder() function has finished executing then it will return how much order has been
+        // executed(executedQty) , how many exact fills that has been happened and the orderId
         try {
           const { executedQty, fills, orderId } = this.createOrder(
             message.data.market,
@@ -103,6 +107,8 @@ export class Engine {
             message.data.side,
             message.data.userId
           );
+          // Once the above createOrder() function is done , We will do  RedisManager.getInstance().sendToApi(clientId,{})
+          // with the clientId
           RedisManager.getInstance().sendToApi(clientId, {
             type: "ORDER_PLACED",
             payload: {
@@ -182,6 +188,8 @@ export class Engine {
         }
         break;
       case GET_OPEN_ORDERS:
+        // If the user wants to see all the current orders that are present on the order book then he can choose the type
+        // this case
         try {
           const openOrderbook = this.orderbooks.find(
             (o) => o.ticker() === message.data.market
@@ -199,12 +207,13 @@ export class Engine {
           console.log(e);
         }
         break;
-      case ON_RAMP:
+      case ON_RAMP: // Incase the user has paid some money then his balance should go up
         const userId = message.data.userId;
         const amount = Number(message.data.amount);
         this.onRamp(userId, amount);
         break;
-      case GET_DEPTH:
+      case GET_DEPTH: // When the user wants to know the current order book then they will send the function to the engine
+        // and then the engine will finally respond to the api call send by the user to know the current order book
         try {
           const market = message.data.market;
           const orderbook = this.orderbooks.find((o) => o.ticker() === market);
@@ -240,13 +249,25 @@ export class Engine {
     side: "buy" | "sell",
     userId: string
   ) {
-    const orderbook = this.orderbooks.find((o) => o.ticker() === market);
-    const baseAsset = market.split("_")[0];
-    const quoteAsset = market.split("_")[1];
+    const orderbook = this.orderbooks.find((o) => o.ticker() === market); // It first gets the order book as we already
+    // know that the Engine will mantain multiple order books which means multiple markets as one market for every order
+    // book
+    const baseAsset = market.split("_")[0]; // We will get the base asset
+    const quoteAsset = market.split("_")[1]; // We will get the quote asset
 
     if (!orderbook) {
       throw new Error("No orderbook found");
     }
+
+    //// First thing you have to do before going to the order book ? /////////////////
+    /* You have to check and lock the funds of the user. let us take a small example to understand ,
+     Let us say the user has 100USDC as the balance in his/her wallet and he wants to buy SOLANA for 20USDC
+     then you need to make sure that the user has only 80USDC is available now and the 20USDC has gone to the order 
+     book. If a user has placed a order of 20USDC then you have to lock 20USDC from the user's balance and this locked
+     20USDC might exist on the order book (or) the order might get matched as well and if the order gets matched 
+      we can unlock the balance . But before you place any order on the order book we must have to lock the user's
+      balance else the user might place two orders with the same request of spending 20USDC twice and we make sure
+      that it should not happen  */
 
     this.checkAndLockFunds(
       baseAsset,
@@ -256,7 +277,7 @@ export class Engine {
       quoteAsset,
       price,
       quantity
-    );
+    ); // Here you are locking the user's balances
 
     const order: Order = {
       price: Number(price),
@@ -267,15 +288,24 @@ export class Engine {
       filled: 0,
       side,
       userId,
-    };
+    }; // Here the order book will handle how many orders are placed , filled and how many orders are executed
+    // etc...
 
     const { fills, executedQty } = orderbook.addOrder(order);
-    this.updateBalance(userId, baseAsset, quoteAsset, side, fills, executedQty);
+    ///// The above addOrder(order) function is the main function which will do all the things related to order /////
+    /* The above addOrder(order) function will do all the math figuring out how much of the user's order
+     can get filled and how much of the user's order can't get filled. Whatever the order is not filled is
+      placed on the order book . Let us say if i placed a order that is really very big then i will eat up the
+      entire order book and whatever the order that we can't able to fullfil will be placed on the order book */
+    this.updateBalance(userId, baseAsset, quoteAsset, side, fills, executedQty); // After the order has
+    // successfully placed then you have to reUpdate the balance of the user. Based on the fills that were happened
+    // we will update the user's balance.
 
+    /* The below four functions are simply publishing the trades to various places */
     this.createDbTrades(fills, market, userId);
     this.updateDbOrders(order, executedQty, fills, market);
     this.publisWsDepthUpdates(fills, price, side, market);
-    this.publishWsTrades(fills, userId, market);
+    this.publishWsTrades(fills, userId, market); // Here we are publishing the trades to the websocket server.
     return { executedQty, fills, orderId: order.orderId };
   }
 
@@ -470,6 +500,12 @@ export class Engine {
     quantity: string
   ) {
     if (side === "buy") {
+      // If the user is trying to buy an order then we make sure that the user has sufficient balance to
+      // place the order . The below Number(price) is PricePerUnit . Let us take an example to understand this clearly..
+      // let us say the price i am willing to buy solana is "141.55" per solana and the quantity of solana i want to
+      // buy is "20". So how much USDC i need is "141.55 * 20" = "2831 USDC" . So this is the final USDC balance that
+      // user should had which is 2831 USDC before buying a quantity of 20 solana according to the above example.
+      // If the user didn't had 2831 USDC then we will simply reject the order with the response as "Insufficient funds"
       if (
         (this.balances.get(userId)?.[quoteAsset]?.available || 0) <
         Number(quantity) * Number(price)
@@ -479,12 +515,14 @@ export class Engine {
       //@ts-ignore
       this.balances.get(userId)[quoteAsset].available =
         this.balances.get(userId)?.[quoteAsset].available -
-        Number(quantity) * Number(price);
+        Number(quantity) * Number(price); // Here it decreases the available balance of the user and places the
+      // user order onto the order book
 
       //@ts-ignore
       this.balances.get(userId)[quoteAsset].locked =
         this.balances.get(userId)?.[quoteAsset].locked +
-        Number(quantity) * Number(price);
+        Number(quantity) * Number(price); // Here it increases the locked balance of the user and places the
+      // user order onto the order book
     } else {
       if (
         (this.balances.get(userId)?.[baseAsset]?.available || 0) <

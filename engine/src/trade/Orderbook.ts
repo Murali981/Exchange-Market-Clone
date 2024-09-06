@@ -18,8 +18,8 @@ export interface Fill {
 }
 
 export class Orderbook {
-  bids: Order[];
-  asks: Order[];
+  bids: Order[]; // It contains array of bids and it is initialized to an empty array
+  asks: Order[]; // It contains array of asks and it is initialized to an empty array
   baseAsset: string;
   quoteAsset: string = BASE_CURRENCY;
   lastTradeId: number;
@@ -59,6 +59,8 @@ export class Orderbook {
     fills: Fill[];
   } {
     if (order.side === "buy") {
+      // Let us say if we are trying to buy solana then it first calls the matchBid(order) function.
+      // In matchBid(order) function I am trying to buy who all were trying to sell.
       const { executedQty, fills } = this.matchBid(order);
       order.filled = executedQty;
       if (executedQty === order.quantity) {
@@ -93,14 +95,25 @@ export class Orderbook {
     const fills: Fill[] = [];
     let executedQty = 0;
 
-    for (let i = 0; i < this.asks.length; i++) {
-      if (this.asks[i].price <= order.price && executedQty < order.quantity) {
+    for (let i = 0; i < this.asks.sort.length; i++) {
+      if (executedQty === order.quantity) {
+        break;
+      }
+      if (this.asks[i].price <= order.price) {
+        // In the above matchBid() function i am trying to iterate over all the asks which are existing in the
+        // current order book.
+        // In the above condition we are trying to check is there any ask that is matching the user and if it exists
+
         const filledQty = Math.min(
           order.quantity - executedQty,
           this.asks[i].quantity
         );
         executedQty += filledQty;
         this.asks[i].filled += filledQty;
+
+        /// In the below we are pushing to the fills array.
+        /// These fills array is all about , What fills are happened during a specific order trade . Whenever the user
+        // places an order then what all quantities are able to be filled by the current order book
         fills.push({
           price: this.asks[i].price.toString(),
           qty: filledQty,
@@ -112,11 +125,14 @@ export class Orderbook {
     }
     for (let i = 0; i < this.asks.length; i++) {
       if (this.asks[i].filled === this.asks[i].quantity) {
+        // If any asks filled quantity is equal to the quantity the user wants to buy (or) sell then you can remove it
+        // from the array of asks which are existing on the current order book
         this.asks.splice(i, 1);
         i--;
       }
     }
     return {
+      // We are returning the fills array and the executed quantity
       fills,
       executedQty,
     };
